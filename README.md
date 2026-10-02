@@ -115,6 +115,9 @@ vi .env
 docker compose -f docker-compose.ghcr.yml up -d
 ```
 
+> 镜像由 **GitHub Actions 自动构建**：推送到 `master` 会更新 `latest`，
+> 打 `v*` 标签会生成对应版本标签。见 `.github/workflows/build.yml`。
+
 打开 `http://<BIND_IP>:5599`（默认只绑 127.0.0.1），用 `.env` 里的 `MAA_WEB_PASSWORD` 登录。
 
 **免密登录**：第一次用 `http://<IP>:5599/?k=<密码>` 打开一次，会写入一年有效的 Cookie，之后直接进。
