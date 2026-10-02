@@ -10,11 +10,11 @@ echo $$ > "$LOCK"
 trap 'rm -f "$LOCK"' EXIT INT TERM
 
 TASK="${MAA_TASK:-daily}"
-ADB_ADDR="${MAA_ADB_ADDRESS:-192.168.2.150:16384}"
+ADB_ADDR="${MAA_ADB_ADDRESS:?请先在 .env 设置 MAA_ADB_ADDRESS}"
 PKG="${MAA_GAME_PKG:-com.hypergryph.arknights}"
-PC_SSH="${MAA_PC_SSH:-leaves@192.168.2.150}"
+PC_SSH="${MAA_PC_SSH:?请先在 .env 设置 MAA_PC_SSH}"
 PC_TASK="${MAA_PC_TASK:-MAA-StartMuMu}"
-MUMU_MGR="${MAA_MUMU_MANAGER:-D:\\mumu\\MuMuPlayer-12.0\\nx_main\\MuMuManager.exe}"
+MUMU_MGR="${MAA_MUMU_MANAGER:?请先在 .env 设置 MAA_MUMU_MANAGER}"
 MUMU_INDEX="${MAA_MUMU_INDEX:-0}"
 WAIT_SECS="${MAA_WAIT_SECS:-180}"
 
