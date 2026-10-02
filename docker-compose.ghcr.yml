@@ -1,0 +1,26 @@
+services:
+  maa:
+    # 用 GHCR 上已构建好的镜像，不需要本地 build 和 prepare.sh
+    image: ghcr.io/salix-leaves/maa-nas:latest
+    container_name: maa
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - MAA_CRON_TIME=${MAA_CRON_TIME:-off}
+      - MAA_TASK=${MAA_TASK:-daily}
+      - MAA_ADB_ADDRESS=${MAA_ADB_ADDRESS}
+      - MAA_GAME_PKG=${MAA_GAME_PKG:-com.hypergryph.arknights}
+      - MAA_PC_SSH=${MAA_PC_SSH}
+      - MAA_PC_TASK=${MAA_PC_TASK:-MAA-StartMuMu}
+      - MAA_MUMU_MANAGER=${MAA_MUMU_MANAGER}
+      - MAA_MUMU_INDEX=${MAA_MUMU_INDEX:-0}
+      - MAA_WAIT_SECS=${MAA_WAIT_SECS:-180}
+      - MAA_WEB_PASSWORD=${MAA_WEB_PASSWORD:?请在 .env 中设置 MAA_WEB_PASSWORD}
+      - MAA_LOG=/maa/log/run.log
+    volumes:
+      - ./config:/maa/config
+      - ./log:/maa/log
+      - ${SSH_DIR:-/root/.ssh}:/root/.ssh:ro
+    ports:
+      # 默认只绑本机；改 .env 里的 BIND_IP 可开放给局域网（切勿暴露到公网）
+      - "${BIND_IP:-127.0.0.1}:5599:5599"

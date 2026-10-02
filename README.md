@@ -104,6 +104,17 @@ vi .env                  # 填 PC 的 IP、SSH 用户名、MuMuManager 路径、
 docker compose up -d --build
 ```
 
+### 或者直接用现成镜像（免构建）
+
+不想自己 build 的话，仓库已把镜像发布到 GHCR：
+
+```bash
+docker pull ghcr.io/salix-leaves/maa-nas:latest
+cp .env.example .env
+vi .env
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
 打开 `http://<BIND_IP>:5599`（默认只绑 127.0.0.1），用 `.env` 里的 `MAA_WEB_PASSWORD` 登录。
 
 **免密登录**：第一次用 `http://<IP>:5599/?k=<密码>` 打开一次，会写入一年有效的 Cookie，之后直接进。
