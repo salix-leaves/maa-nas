@@ -1,0 +1,10 @@
+# 敏感
+.env
+# 运行时产物
+log/
+# prepare.sh 下载的构建上下文（几百 MB，不入库）
+bin/
+data/
+platform-tools/
+*.tgz
+*.zip

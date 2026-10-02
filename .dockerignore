@@ -1,0 +1,4 @@
+config
+run.sh
+**/.git
+platform-tools/NOTICE.txt
