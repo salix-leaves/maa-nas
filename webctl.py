@@ -43,7 +43,7 @@ KNOWN = {
                         ["Official", "Bilibili", "txwy", "YoStarEN", "YoStarJP", "YoStarKR"]),
     },
     "Fight": {
-        "stage": ("关卡（如 1-7 / CE-6 / Annihilation）", "1-7", "text"),
+        "stage": ("关卡（1-7 / CE-6 / Annihilation=当期剿灭 / 具体剿灭图）", "1-7", "text"),
         "medicine": ("最多吃几个理智药", 0, "int"),
         "medicine_expire_days": ("用多少天内过期的药", 0, "int"),
         "stone": ("最多吃几个源石", 0, "int"),
@@ -407,8 +407,35 @@ TASK_PAGE = """<!doctype html>
 __BLOCKS__
 <div class="actions">
   <button class="go primary" type="submit" style="width:auto;padding:11px 26px">💾 保存</button>
+  <button type="button" id="reset" class="go"
+          style="width:auto;padding:11px 22px;background:#39445c;color:#dfe6f5">↺ 恢复默认值</button>
+  <a class="back" href="/task/__ID__">↩ 放弃修改</a>
   <a class="back" href="/">← 返回功能选单</a>
 </div>
+<script>
+document.getElementById('reset').addEventListener('click', function(){
+  // 文本框 → 内置默认值
+  document.querySelectorAll('input[type=text][data-def]').forEach(function(el){
+    el.value = el.getAttribute('data-def');
+  });
+  // 下拉 → 内置默认值（默认值不在候选里就补一个）
+  document.querySelectorAll('select[data-def]').forEach(function(el){
+    var d = el.getAttribute('data-def'), found = false;
+    for (var i = 0; i < el.options.length; i++){
+      if (el.options[i].value === d) { found = true; break; }
+    }
+    if (!found && d !== '') {
+      var o = document.createElement('option');
+      o.value = d; o.textContent = d; el.appendChild(o);
+    }
+    el.value = d;
+  });
+  // 勾选框 → 恢复到刚打开页面时的状态
+  document.querySelectorAll('input[type=checkbox][data-defcheck]').forEach(function(el){
+    el.checked = el.getAttribute('data-defcheck') === '1';
+  });
+});
+</script>
 </form>
 </div></body></html>"""
 
@@ -417,22 +444,26 @@ def esc(v, quote_attr=False):
     return html.escape(str(v), quote=quote_attr)
 
 
-def value_input(field, value, kind, checked):
-    """渲染一个参数的输入控件。"""
+def value_input(field, value, kind, defval=None):
+    """渲染一个参数的输入控件；data-def 存内置默认值，供「恢复默认值」按钮使用。"""
     v = fmt_value(value, kind)
+    d = fmt_value(defval, kind) if defval is not None else v
     if isinstance(kind, list):  # 下拉候选
         opts = "".join('<option value="%s"%s>%s</option>'
                        % (esc(o, True), " selected" if str(o) == v else "", esc(o)) for o in kind)
         if v not in [str(o) for o in kind]:
             opts += '<option value="%s" selected>%s</option>' % (esc(v, True), esc(v))
-        ctl = '<select name="%s">%s</select>' % (esc(field, True), opts)
+        ctl = '<select name="%s" data-def="%s">%s</select>' % (esc(field, True), esc(d, True), opts)
     elif kind == "bool":
-        ctl = ('<select name="%s"><option value="true"%s>true（启用）</option>'
+        ctl = ('<select name="%s" data-def="%s">'
+               '<option value="true"%s>true（启用）</option>'
                '<option value="false"%s>false（关闭）</option></select>'
-               % (esc(field, True), " selected" if str(v) == "true" else "",
+               % (esc(field, True), esc(d, True),
+                  " selected" if str(v) == "true" else "",
                   " selected" if str(v) == "false" else ""))
     else:
-        ctl = '<input type="text" name="%s" value="%s">' % (esc(field, True), esc(v, True))
+        ctl = ('<input type="text" name="%s" value="%s" data-def="%s">'
+               % (esc(field, True), esc(v, True), esc(d, True)))
     return ctl
 
 
@@ -449,22 +480,24 @@ def render_task_page(tid, blocks):
             present = key in cur
             val = cur[key] if present else default
             rows.append(
-                '<tr><td><input type="checkbox" name="on.%d.%s" value="1"%s></td>'
+                '<tr><td><input type="checkbox" name="on.%d.%s" value="1"%s data-defcheck="%s"></td>'
                 '<td class="k"><code>%s</code></td>'
                 '<td>%s</td><td class="hint">%s</td></tr>'
                 % (i, esc(key, True), " checked" if present else "",
-                   esc(key), value_input("p.%d.%s" % (i, key), val, kind, present),
+                   "1" if present else "0",
+                   esc(key), value_input("p.%d.%s" % (i, key), val, kind, default),
                    esc(label)))
         # 2) 文件里有、但不在知识库里的参数（原样保留，可删）
         for key, val in cur.items():
             if key in known:
                 continue
             rows.append(
-                '<tr><td><input type="checkbox" name="on.%d.%s" value="1" checked></td>'
+                '<tr><td><input type="checkbox" name="on.%d.%s" value="1" checked data-defcheck="1"></td>'
                 '<td class="k"><code>%s</code></td>'
-                '<td><input type="text" name="p.%d.%s" value="%s"></td>'
+                '<td><input type="text" name="p.%d.%s" value="%s" data-def="%s"></td>'
                 '<td class="hint">（自定义参数）</td></tr>'
-                % (i, esc(key, True), esc(key), i, esc(key, True), esc(fmt_value(val, ""), True)))
+                % (i, esc(key, True), esc(key), i, esc(key, True),
+                   esc(fmt_value(val, ""), True), esc(fmt_value(val, ""), True)))
         rows_html.append(
             '<div class="blk">'
             '<div class="bh"><b>%s</b><code>%s</code></div>'

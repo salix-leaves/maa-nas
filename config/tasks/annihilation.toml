@@ -1,0 +1,17 @@
+# @name 剿灭作战
+# @desc 唤醒 → 剿灭（自动识别每周合成玉进度，打满即停）→ 关游戏
+
+[[tasks]]
+name = "开始唤醒"
+type = "StartUp"
+params = { client_type = "Official", start_game_enabled = true }
+
+[[tasks]]
+name = "剿灭作战"
+type = "Fight"
+params = { stage = "Annihilation", medicine = 0, stone = 0, series = -1, times = 2147483647, report_to_penguin = false }
+
+[[tasks]]
+name = "关闭游戏"
+type = "CloseDown"
+params = { client_type = "Official" }

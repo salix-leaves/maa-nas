@@ -143,6 +143,7 @@ docker compose -f docker-compose.ghcr.yml up -d
 | `recruit` | 只自动公招 |
 | `mall` | 只信用购物 |
 | `award` | 只领取奖励 |
+| `annihilation` | 只打剿灭（自动识别每周合成玉进度，打满即停） |
 | `roguelike` | 只自动肉鸽（默认 1 把） |
 | `startup` | 只唤醒游戏（排障用，不关游戏） |
 | `closedown` | 只关闭游戏 |
@@ -164,9 +165,39 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 ```
 http://<IP>:5599/task/fight        ← 刷理智：关卡、次数、理智药、代理倍率…
+http://<IP>:5599/task/annihilation ← 剿灭：关卡值/次数
 http://<IP>:5599/task/roguelike    ← 肉鸽：主题、策略、分队、核心干员、探索次数…
 http://<IP>:5599/task/infrast      ← 基建：模式、设施、无人机用途、心情阈值…
 ```
+
+页面底部四个操作：
+
+| 按钮 | 作用 |
+| --- | --- |
+| **💾 保存** | 写回 `.toml`，下次执行生效 |
+| **↺ 恢复默认值** | 把所有参数值还原成内置默认（不提交，可以先看再决定保存） |
+| **↩ 放弃修改** | 重新加载页面，丢掉未保存的改动 |
+| **← 返回功能选单** | 回主页 |
+
+#### 剿灭
+
+想自动打满剿灭，用 `annihilation` 这个预设（或在刷理智的设置页把 `stage` 改成 `Annihilation`）：
+
+```toml
+params = { stage = "Annihilation", medicine = 0, stone = 0, series = -1, times = 2147483647 }
+```
+
+`Annihilation` = **当期剿灭**（自动识别是哪张图）。也可以填具体图，值必须完全一致：
+
+| 关卡 | 值 |
+| --- | --- |
+| 当期剿灭 | `Annihilation` |
+| 切尔诺伯格 | `Chernobog@Annihilation` |
+| 龙门外环 | `LungmenOutskirts@Annihilation` |
+| 龙门市区 | `LungmenDowntown@Annihilation` |
+
+`series = -1` 关闭代理倍率切换（剿灭不支持倍率）；`times` 给一个很大的数，
+MAA 每次打完会读每周合成玉进度，**满了就自动停**。如果它没停，网页上点「■ 停止」即可。
 
 页面会把该任务里**每个 MAA 任务块**的参数列出来（勾选框控制是否启用），每项都带说明，
 还有下拉选项（比如肉鸽主题、基建无人机用途）。改完点「💾 保存」直接写回 `.toml`，**下次执行即生效**。
