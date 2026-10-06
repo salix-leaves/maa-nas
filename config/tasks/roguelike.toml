@@ -1,0 +1,17 @@
+# @name 一键肉鸽
+# @desc 唤醒 → 自动肉鸽（点 ⚙ 调主题/策略/分队/次数）→ 关游戏
+
+[[tasks]]
+name = "开始唤醒"
+type = "StartUp"
+params = { client_type = "Official", start_game_enabled = true }
+
+[[tasks]]
+name = "自动肉鸽"
+type = "Roguelike"
+params = { theme = "Sarkaz", mode = 0, squad = "Default", roles = "Default", starts_count = 1, investment_enabled = true, investments_count = 999 }
+
+[[tasks]]
+name = "关闭游戏"
+type = "CloseDown"
+params = { client_type = "Official" }
