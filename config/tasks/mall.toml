@@ -1,0 +1,17 @@
+# @name 信用购物
+# @desc 唤醒 → 访问好友基建 + 信用商店购物 → 关游戏
+
+[[tasks]]
+name = "开始唤醒"
+type = "StartUp"
+params = { client_type = "Official", start_game_enabled = true }
+
+[[tasks]]
+name = "信用购物"
+type = "Mall"
+params = { visit_friends = true, shopping = true, buy_first = ["招聘许可", "龙门币"], blacklist = ["碳", "家具零件", "加急许可"] }
+
+[[tasks]]
+name = "关闭游戏"
+type = "CloseDown"
+params = { client_type = "Official" }

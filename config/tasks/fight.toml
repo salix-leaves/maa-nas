@@ -1,0 +1,17 @@
+# @name 只刷理智
+# @desc 唤醒 → 1-7 打 6 次 → 关游戏
+
+[[tasks]]
+name = "开始唤醒"
+type = "StartUp"
+params = { client_type = "Official", start_game_enabled = true }
+
+[[tasks]]
+name = "刷理智"
+type = "Fight"
+params = { stage = "1-7", medicine = 0, stone = 0, series = 0, times = 6, report_to_penguin = false }
+
+[[tasks]]
+name = "关闭游戏"
+type = "CloseDown"
+params = { client_type = "Official" }

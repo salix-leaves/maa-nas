@@ -1,0 +1,7 @@
+# @name 仅唤醒游戏
+# @desc 只启动模拟器/游戏并进到主界面（排障用，结束后游戏不关）
+
+[[tasks]]
+name = "开始唤醒"
+type = "StartUp"
+params = { client_type = "Official", start_game_enabled = true }

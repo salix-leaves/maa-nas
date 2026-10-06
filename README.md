@@ -126,10 +126,37 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 | 方式 | 命令 |
 | --- | --- |
-| 网页（推荐） | 打开 `http://<IP>:5599`，点「开始日常」 |
-| 命令行 | `docker exec maa run-daily.sh` |
+| 网页（推荐） | 打开 `http://<IP>:5599`，在**功能选单**里点要跑的任务 |
+| 命令行 | `docker exec maa run-daily.sh`（跑 `config/tasks/daily.toml`） |
 | 看日志 | `tail -f log/run.log` |
 | 停掉当前任务 | 网页点「停止」，或 `docker exec maa pkill -f run-daily.sh` |
+
+### 网页功能选单
+
+页面上的按钮是**扫 `config/tasks/*.toml` 自动生成**的，文件名就是任务 ID：
+
+| 任务 | 做什么 |
+| --- | --- |
+| `daily` **一键长草** | 唤醒 → 公招 → 基建 → 购物 → 领奖 → 刷理智 → 关游戏 |
+| `fight` | 只刷理智（1-7 × 6） |
+| `infrast` | 只基建换班 |
+| `recruit` | 只自动公招 |
+| `mall` | 只信用购物 |
+| `award` | 只领取奖励 |
+| `startup` | 只唤醒游戏（排障用，不关游戏） |
+| `closedown` | 只关闭游戏 |
+
+**新增或修改按钮**：在 `config/tasks/` 下加个 `.toml`，文件名即 ID，文件头两行注释用作显示：
+
+```toml
+# @name 显示名称
+# @desc 按钮下面的说明文字
+[[tasks]]
+...
+```
+
+改完**刷新页面即可**，不用重建镜像、不用重启容器。
+
 
 ## 配置
 

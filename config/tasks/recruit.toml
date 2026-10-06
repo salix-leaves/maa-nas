@@ -1,0 +1,17 @@
+# @name 自动公招
+# @desc 唤醒 → 公开招募 4 次 → 关游戏
+
+[[tasks]]
+name = "开始唤醒"
+type = "StartUp"
+params = { client_type = "Official", start_game_enabled = true }
+
+[[tasks]]
+name = "自动公招"
+type = "Recruit"
+params = { refresh = false, select = [4, 5], confirm = [3, 4, 5], times = 4, expedite = false }
+
+[[tasks]]
+name = "关闭游戏"
+type = "CloseDown"
+params = { client_type = "Official" }

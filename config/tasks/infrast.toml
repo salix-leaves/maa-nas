@@ -1,0 +1,17 @@
+# @name 基建换班
+# @desc 唤醒 → 基建换班（含无人机/会客室）→ 关游戏
+
+[[tasks]]
+name = "开始唤醒"
+type = "StartUp"
+params = { client_type = "Official", start_game_enabled = true }
+
+[[tasks]]
+name = "基建换班"
+type = "Infrast"
+params = { mode = 0, facility = ["Mfg", "Trade", "Power", "Control", "Reception", "Office", "Dorm"], drones = "Money", threshold = 0.3, dorm_trust_enabled = false, reception_message_board = true, reception_clue_exchange = true, reception_send_clue = true }
+
+[[tasks]]
+name = "关闭游戏"
+type = "CloseDown"
+params = { client_type = "Official" }

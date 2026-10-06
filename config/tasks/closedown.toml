@@ -1,0 +1,7 @@
+# @name 仅关闭游戏
+# @desc 只关闭游戏客户端
+
+[[tasks]]
+name = "关闭游戏"
+type = "CloseDown"
+params = { client_type = "Official" }

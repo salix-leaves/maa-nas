@@ -1,0 +1,17 @@
+# @name 领取奖励
+# @desc 唤醒 → 每日/每周任务、邮件、合成玉等奖励 → 关游戏
+
+[[tasks]]
+name = "开始唤醒"
+type = "StartUp"
+params = { client_type = "Official", start_game_enabled = true }
+
+[[tasks]]
+name = "领取奖励"
+type = "Award"
+params = { award = true, mail = true, recruit = true, orundum = true, mining = true, signinevent = true }
+
+[[tasks]]
+name = "关闭游戏"
+type = "CloseDown"
+params = { client_type = "Official" }
