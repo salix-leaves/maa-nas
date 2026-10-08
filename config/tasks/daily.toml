@@ -1,5 +1,5 @@
 # @name 一键长草
-# @desc 全套日常：唤醒→公招→基建→购物→领奖→刷理智→关游戏
+# @desc 全套日常：唤醒→公招→基建→购物→刷理智→领奖→关游戏
 
 [[tasks]]
 name = "开始唤醒"
@@ -22,14 +22,17 @@ type = "Mall"
 params = { visit_friends = true, shopping = true, buy_first = ["招聘许可", "龙门币"], blacklist = ["碳", "家具零件", "加急许可"] }
 
 [[tasks]]
-name = "领取奖励"
-type = "Award"
-params = { award = true, mail = true, recruit = true, orundum = true, mining = true, signinevent = true }
-
-[[tasks]]
 name = "刷理智"
 type = "Fight"
 params = { stage = "1-7", medicine = 0, stone = 0, series = 0, times = 6, report_to_penguin = false }
+
+# ⚠️ 顺序很重要：领取奖励必须放在「能完成每日任务」的任务之后。
+# 每日任务里有「完成 N 次作战」「消耗理智」这类，要先刷完才算完成；
+# 若把领取奖励排在前面，这些奖励还没解锁就去领了，当天就永久领不到。
+[[tasks]]
+name = "领取奖励"
+type = "Award"
+params = { award = true, mail = true, recruit = true, orundum = true, mining = true, signinevent = true, specialaccess = true }
 
 [[tasks]]
 name = "关闭游戏"
