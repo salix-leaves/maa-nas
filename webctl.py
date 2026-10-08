@@ -20,7 +20,10 @@ PORT = int(os.environ.get("MAA_WEB_PORT", "5599"))
 USER = os.environ.get("MAA_WEB_USER", "maa")
 PASSWORD = os.environ.get("MAA_WEB_PASSWORD", "")
 LOG = os.environ.get("MAA_LOG", "/maa/data/run.log")
+LOG_KEEP = int(os.environ.get("MAA_LOG_KEEP", "5"))
 RUNNER = "/usr/local/bin/run-daily.sh"
+UPDATER = "/usr/local/bin/update-maa.sh"
+ROTATOR = "/usr/local/bin/rotate-log.sh"
 TASKS_DIR = os.environ.get("MAA_TASKS_DIR", "/maa/config/tasks")
 DEFAULT_TASK = os.environ.get("MAA_TASK", "daily")
 STATE = "/tmp/maa-current-task"
@@ -268,9 +271,42 @@ def fmt_value(v, kind):
     return str(v)
 
 
-def is_running():
-    return subprocess.run(["pgrep", "-f", RUNNER],
+def _pgrep(pat):
+    return subprocess.run(["pgrep", "-f", pat],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+
+def is_running():
+    """跑任务或更新中都算「忙」。"""
+    return _pgrep(RUNNER) or _pgrep(UPDATER)
+
+
+def busy_kind():
+    if _pgrep(UPDATER):
+        return "update"
+    if _pgrep(RUNNER):
+        return "run"
+    return ""
+
+
+def log_file(hist=0):
+    """hist=0 是当前日志，1..N 是历史日志。"""
+    if hist and 1 <= hist <= LOG_KEEP:
+        return "%s.%d" % (LOG, hist)
+    return LOG
+
+
+def rotate_log():
+    """轮转日志（只保留最近 LOG_KEEP 次），必须在打开日志句柄之前调用。"""
+    subprocess.run([ROTATOR], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def run_update():
+    if is_running():
+        return False
+    fh = open(LOG, "a")
+    subprocess.Popen(["setsid", UPDATER], stdout=fh, stderr=subprocess.STDOUT)
+    return True
 
 
 def current_task():
@@ -281,17 +317,18 @@ def current_task():
         return ""
 
 
-def log_tail(n=150):
+def log_tail(n=150, hist=0):
     try:
-        with open(LOG, "r", errors="replace") as f:
+        with open(log_file(hist), "r", errors="replace") as f:
             return "".join(f.readlines()[-n:]) or "(暂无内容)"
     except OSError:
-        return "(还没有运行记录)"
+        return "(没有这份日志)"
 
 
 def start_run(task):
     if is_running():
         return False
+    rotate_log()
     env = dict(os.environ)
     env["MAA_TASK"] = task
     fh = open(LOG, "a")
@@ -358,6 +395,34 @@ STYLE = """
  .back{color:#8b93a7;text-decoration:none;font-size:13px}
  .back:hover{color:#dfe6f5}
  .empty{color:#7d869b;font-size:13px}
+
+ /* ---------- 手机端：单列、按钮不并排、参数表改成卡片 ---------- */
+ @media (max-width:640px){
+   body{padding:10px}
+   .card{padding:16px 14px;border-radius:12px}
+   h1{font-size:18px}
+   .sub{font-size:12.5px;margin-bottom:14px}
+   .grid{grid-template-columns:1fr;gap:9px}
+   .row{gap:8px}
+   .row > div:last-child{width:100%;display:flex;flex-direction:column;gap:8px}
+   .row form{margin:0 !important;display:block !important}
+   #sp,#upd{width:100% !important;padding:13px !important;margin:0 !important}
+   .actions{flex-direction:column;align-items:stretch;gap:9px}
+   .actions button,.actions .back{width:100%;text-align:center;padding:13px}
+   .blk{padding:12px}
+   .bh{font-size:14px}
+   table,tbody,tr,td,th{display:block;width:100%}
+   thead{display:none}
+   tr{background:#1a2032;border-radius:9px;padding:10px 12px;margin-bottom:8px}
+   td{padding:2px 0}
+   td:first-child{display:inline-block;width:22px;vertical-align:middle;margin-right:6px}
+   td.k{display:inline-block;width:auto;vertical-align:middle}
+   td.k code{font-size:13px;color:#a9b6cf}
+   td.hint{font-size:11px;color:#6f788c;margin-top:3px}
+   td input[type=text],td select{font-size:15px;padding:10px}
+   pre{height:38vh;font-size:12px;padding:11px}
+   #hist{display:block;width:100%;margin:8px 0 0}
+ }
 """
 
 MENU_PAGE = """<!doctype html>
@@ -369,29 +434,48 @@ MENU_PAGE = """<!doctype html>
 <div class="sub">NAS → ADB → PC 上 MuMu 模拟器里的游戏</div>
 <div class="row">
   <div id="st" style="font-size:15px">__STATUS__</div>
-  <div><form method="post" action="/stop" style="margin:0">
-    <button id="sp" class="stop" style="width:auto;padding:11px 26px"__STOPDIS__>■ 停止</button>
-  </form></div>
+  <div>
+    <form method="post" action="/stop" style="margin:0;display:inline">
+      <button id="sp" class="stop" style="width:auto;padding:11px 26px"__STOPDIS__>■ 停止</button>
+    </form>
+    <form method="post" action="/update" style="margin:0 0 0 8px;display:inline"
+          onsubmit="return confirm('将更新 maa-cli / MaaCore 及游戏资源，可能要几分钟，确定吗？')">
+      <button id="upd" class="go" style="width:auto;padding:11px 20px;background:#39445c;color:#dfe6f5"__UPDDIS__>🔄 更新 MAA</button>
+    </form>
+  </div>
 </div>
 <h3>功能选单（点按钮执行，点 ⚙ 调参数）</h3>
 <div class="grid" id="tasks">__TASKS__</div>
-<h3>运行日志（每 5 秒自动刷新）</h3>
+<h3>运行日志（每 5 秒自动刷新）
+  <select id="hist">__HIST__</select>
+</h3>
 <pre id="log">__LOG__</pre>
 </div>
 <script>
 async function tick(){
   try{
-    const r = await fetch('/api/state', {cache:'no-store'});
+    const r = await fetch('/api/state' + location.search, {cache:'no-store'});
     const j = await r.json();
     document.getElementById('st').innerHTML = j.running
       ? '<span class="dot on"></span>运行中' + (j.taskName ? '：' + j.taskName : '')
       : '<span class="dot off"></span>空闲';
     document.querySelectorAll('#tasks button').forEach(function(b){ b.disabled = j.running; });
     document.getElementById('sp').disabled = !j.running;
+    var ub = document.getElementById('upd');
+    if (ub) ub.disabled = j.running;
     const el = document.getElementById('log');
-    if (el.textContent !== j.log) { el.textContent = j.log; el.scrollTop = el.scrollHeight; }
+    if (el.textContent !== j.log) {
+      // 本来就在底部才自动跟到最新，避免打断向上翻阅
+      var stick = (el.scrollHeight - el.scrollTop - el.clientHeight) < 60;
+      el.textContent = j.log;
+      if (stick) requestAnimationFrame(function(){ el.scrollTop = el.scrollHeight; });
+    }
   }catch(e){}
 }
+var hsel = document.getElementById('hist');
+if (hsel) hsel.addEventListener('change', function(){
+  location.search = this.value ? ('?h=' + this.value) : '';
+});
 setInterval(tick, 5000);
 </script>
 </body></html>"""
@@ -577,11 +661,18 @@ class H(BaseHTTPRequestHandler):
             return self._deny()
 
         if path == "/api/state":
+            q = parse_qs(urlparse(self.path).query)
+            try:
+                hist = int(q.get("h", ["0"])[0])
+            except ValueError:
+                hist = 0
+            if not (0 <= hist <= LOG_KEEP):
+                hist = 0
             run = is_running()
             cur = current_task()
-            data = json.dumps({"running": run, "task": cur,
+            data = json.dumps({"running": run, "kind": busy_kind(), "task": cur,
                                "taskName": self._task_name(cur) if cur else "",
-                               "log": log_tail()}).encode()
+                               "log": log_tail(hist=hist)}).encode()
             return self._send(200, data, "application/json; charset=utf-8")
 
         if path.startswith("/task/"):
@@ -602,17 +693,35 @@ class H(BaseHTTPRequestHandler):
 
         run = is_running()
         cur = current_task()
+        kind = busy_kind()
+        q = parse_qs(urlparse(self.path).query)
+        try:
+            hist = int(q.get("h", ["0"])[0])
+        except ValueError:
+            hist = 0
+        if not (0 <= hist <= LOG_KEEP):
+            hist = 0
         if run:
-            status = ('<span class="dot on"></span>运行中'
-                      + ("　<b>" + esc(self._task_name(cur)) + "</b>" if cur else ""))
+            if kind == "update":
+                status = '<span class="dot on"></span>更新中'
+            else:
+                status = ('<span class="dot on"></span>运行中'
+                          + ("　<b>" + esc(self._task_name(cur)) + "</b>" if cur else ""))
         else:
             status = '<span class="dot off"></span>空闲'
+        hist_opts = "".join(
+            '<option value="%d"%s>%s</option>'
+            % (i, " selected" if i == hist else "",
+               "当前（本次）" if i == 0 else ("上一次" if i == 1 else "往前第 %d 次" % i))
+            for i in range(0, LOG_KEEP + 1))
         body = (MENU_PAGE
                 .replace("__STYLE__", STYLE)
                 .replace("__STATUS__", status)
                 .replace("__STOPDIS__", "" if run else " disabled")
+                .replace("__UPDDIS__", "" if run else " disabled")
                 .replace("__TASKS__", task_cards(run))
-                .replace("__LOG__", html.escape(log_tail()))).encode()
+                .replace("__HIST__", hist_opts)
+                .replace("__LOG__", html.escape(log_tail(hist=hist)))).encode()
         self._send(200, body)
 
     def do_POST(self):
@@ -659,6 +768,8 @@ class H(BaseHTTPRequestHandler):
             if task not in [t["id"] for t in list_tasks()]:
                 task = DEFAULT_TASK
             start_run(task)
+        elif path == "/update":
+            run_update()
         elif path == "/stop":
             stop_run()
         self._send(303, b"", extra={"Location": "/"})

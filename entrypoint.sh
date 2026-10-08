@@ -24,6 +24,7 @@ fi
 echo "[maa] 定时执行：每天 ${AT} 运行 '${TASK}'"
 while true; do
   if [ "$(date +%H:%M)" = "$AT" ]; then
+    /usr/local/bin/rotate-log.sh
     /usr/local/bin/run-daily.sh >> "${MAA_LOG:-/maa/data/run.log}" 2>&1
     sleep 60
   fi
