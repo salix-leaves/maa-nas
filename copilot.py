@@ -72,10 +72,13 @@ def fetch_levels(force=False, max_age=86400):
 def resolve_stages(levels, query):
     """把用户给的关卡写法解析成 stage_id 列表（可能匹配多个关卡）。
 
-    批量首通场景：跳过突袭变体（stage_id 带 #f#）和教学关（代码含 -TR），
-    并按显示代码（cat_three）去重。
+    批量首通场景：
+    - 跳过突袭变体（stage_id 带 #f#）和教学关（代码含 -TR）
+    - EX 关卡在独立地图区域，多作业模式无法跨区域滑动，因此：
+      填活动名（如「昨日海」）只返回主线关；填「YW-EX」才返回 EX 关。
     """
     q = query.strip()
+    want_ex = "EX" in q.upper()
     exact = []
     fuzzy = []
     for lv in levels:
@@ -85,9 +88,11 @@ def resolve_stages(levels, query):
         cat3 = lv.get("cat_three", "")
         if "-TR" in cat3:
             continue  # 教学关，跳过
+        if "-EX" in cat3 and not want_ex:
+            continue  # 活动名批量只打主线，EX 在独立地图区域
         cat2 = lv.get("cat_two", "")
         name = lv.get("name", "")
-        if q in (sid, cat3, name, cat2):
+        if q in (sid, cat3, name, cat2) or cat3.startswith(q + "-"):
             exact.append(lv)
         elif q.lower() in (sid.lower(), cat3.lower(), name.lower(), cat2.lower()):
             fuzzy.append(lv)
