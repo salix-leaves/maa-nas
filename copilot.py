@@ -213,11 +213,8 @@ def write_task(entries, task_path, ignore_req):
     lines = [
         "# @name 自动抄作业",
         "# @desc 动态生成，由 copilot.py 写入，请勿手动编辑",
-        "",
-        "[[tasks]]",
-        'name = "开始唤醒"',
-        'type = "StartUp"',
-        'params = { client_type = "Official", start_game_enabled = true }',
+        "# 注意：不含 StartUp。多作业模式需在「关卡所在的地图界面」开始，",
+        "# 请先手动进入活动地图（如昨日海的关卡选择页）再点开始。",
         "",
         "[[tasks]]",
         'name = "自动抄作业"',
