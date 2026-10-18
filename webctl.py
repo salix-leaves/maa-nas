@@ -24,6 +24,8 @@ LOG_KEEP = int(os.environ.get("MAA_LOG_KEEP", "5"))
 RUNNER = "/usr/local/bin/run-daily.sh"
 UPDATER = "/usr/local/bin/update-maa.sh"
 ROTATOR = "/usr/local/bin/rotate-log.sh"
+COPILOT = "/usr/local/bin/run-copilot.sh"
+COPILOT_BAN = os.environ.get("MAA_COPILOT_BAN", "号角,阿斯卡纶,娜仁图雅,娜仁图亚")
 TASKS_DIR = os.environ.get("MAA_TASKS_DIR", "/maa/config/tasks")
 DEFAULT_TASK = os.environ.get("MAA_TASK", "daily")
 STATE = "/tmp/maa-current-task"
@@ -141,7 +143,8 @@ def _read_head(path):
 def list_tasks():
     out = []
     try:
-        files = sorted(f for f in os.listdir(tasks_dir()) if f.endswith(".toml"))
+        files = sorted(f for f in os.listdir(tasks_dir())
+                       if f.endswith(".toml") and not f.startswith("_"))
     except OSError:
         return out
     for fn in files:
@@ -277,14 +280,14 @@ def _pgrep(pat):
 
 
 def is_running():
-    """跑任务或更新中都算「忙」。"""
-    return _pgrep(RUNNER) or _pgrep(UPDATER)
+    """跑任务、抄作业或更新中都算「忙」。"""
+    return _pgrep(RUNNER) or _pgrep(UPDATER) or _pgrep(COPILOT)
 
 
 def busy_kind():
     if _pgrep(UPDATER):
         return "update"
-    if _pgrep(RUNNER):
+    if _pgrep(RUNNER) or _pgrep(COPILOT):
         return "run"
     return ""
 
@@ -306,6 +309,24 @@ def run_update():
         return False
     fh = open(LOG, "a")
     subprocess.Popen(["setsid", UPDATER], stdout=fh, stderr=subprocess.STDOUT)
+    return True
+
+
+def run_copilot(stage, ban):
+    if is_running():
+        return False
+    rotate_log()
+    env = dict(os.environ)
+    env["MAA_COPILOT_STAGE"] = stage
+    if ban:
+        env["MAA_COPILOT_BAN"] = ban
+    fh = open(LOG, "a")
+    subprocess.Popen(["setsid", COPILOT], stdout=fh, stderr=subprocess.STDOUT, env=env)
+    try:
+        with open(STATE, "w") as f:
+            f.write("抄作业·" + stage)
+    except OSError:
+        pass
     return True
 
 
@@ -444,6 +465,19 @@ MENU_PAGE = """<!doctype html>
     </form>
   </div>
 </div>
+<div class="row" style="margin-top:14px">
+  <form method="post" action="/copilot"
+        style="margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"
+        onsubmit="return confirm('将自动查找作业、下载并开始战斗，确定吗？')">
+    <span style="font-size:13px;color:#8b93a7;white-space:nowrap">📋 抄作业</span>
+    <input type="text" name="stage" placeholder="关卡，如 YW-8" value="__COPLAST__"
+           style="width:130px;padding:8px 10px;border-radius:7px;border:1px solid #2b3446;background:#0d1016;color:#e6e8ee;font-size:13px">
+    <input type="text" name="ban" placeholder="屏蔽干员，逗号分隔" value="__COPBAN__"
+           style="width:230px;padding:8px 10px;border-radius:7px;border:1px solid #2b3446;background:#0d1016;color:#e6e8ee;font-size:13px">
+    <button type="submit" class="go" id="cp"
+            style="width:auto;padding:9px 16px;background:#3a4a72;color:#e6e8ee"__COPDIS__>找作业并开始</button>
+  </form>
+</div>
 <h3>功能选单（点按钮执行，点 ⚙ 调参数）</h3>
 <div class="grid" id="tasks">__TASKS__</div>
 <h3>运行日志（每 5 秒自动刷新）
@@ -463,6 +497,8 @@ async function tick(){
     document.getElementById('sp').disabled = !j.running;
     var ub = document.getElementById('upd');
     if (ub) ub.disabled = j.running;
+    var cp = document.getElementById('cp');
+    if (cp) cp.disabled = j.running;
     const el = document.getElementById('log');
     if (el.textContent !== j.log) {
       // 本来就在底部才自动跟到最新，避免打断向上翻阅
@@ -719,6 +755,9 @@ class H(BaseHTTPRequestHandler):
                 .replace("__STATUS__", status)
                 .replace("__STOPDIS__", "" if run else " disabled")
                 .replace("__UPDDIS__", "" if run else " disabled")
+                .replace("__COPLAST__", "")
+                .replace("__COPBAN__", html.escape(COPILOT_BAN, quote=True))
+                .replace("__COPDIS__", "" if run else " disabled")
                 .replace("__TASKS__", task_cards(run))
                 .replace("__HIST__", hist_opts)
                 .replace("__LOG__", html.escape(log_tail(hist=hist)))).encode()
@@ -770,6 +809,12 @@ class H(BaseHTTPRequestHandler):
             start_run(task)
         elif path == "/update":
             run_update()
+        elif path == "/copilot":
+            q = parse_qs(raw)
+            stage = (q.get("stage") or [""])[0].strip()
+            ban = (q.get("ban") or [""])[0].strip()
+            if stage:
+                run_copilot(stage, ban)
         elif path == "/stop":
             stop_run()
         self._send(303, b"", extra={"Location": "/"})

@@ -155,6 +155,34 @@ docker compose -f docker-compose.ghcr.yml up -d
 更新写在容器文件系统里，**容器被重建（拉新镜像）后会回到镜像自带版本** —— 用现成镜像的话
 每次 `docker pull` 拿到的就已经是最新的了。
 
+### 📋 自动抄作业（找作业 + 自动战斗）
+
+页面上的「📋 抄作业」表单，填个关卡点「找作业并开始」即可：**自动从作业站
+[prts.plus](https://prts.plus) 搜出该关卡的作业 → 排除用屏蔽干员的 → 按热度选最优 → 下载 →
+唤醒 PC、启动游戏、自动编队、开打**。
+
+| 输入框 | 说明 |
+| --- | --- |
+| 关卡 | `YW-8`（活动关卡代码）、`act52side_08`（stage_id）、`鳞的记忆`（关卡名）、`昨日海`（活动名，会跑该活动全部关卡）均可 |
+| 屏蔽干员 | 逗号分隔，默认 `号角,阿斯卡纶,娜仁图雅,娜仁图亚`（会精确排除用这些干员的作业） |
+
+实现：
+
+- `copilot.py` —— 调作业站 `prts.maa.plus` 的 `/copilot/query` 精确按关卡搜作业，
+  解析每份作业 JSON 里的 `opers` / `groups` 干员名单做屏蔽过滤，按 `hot_score` 选最优并下载。
+- `run-copilot.sh` —— 找作业 → 生成动态任务 `_copilot.toml`（`Copilot` 任务，`formation` 自动编队）
+  → 复用 `run-daily.sh` 的 PC 唤醒 / 游戏启动预检 → `maa run`。
+
+命令行等价：
+
+```bash
+docker exec -e MAA_COPILOT_STAGE=YW-8 \
+  -e MAA_COPILOT_BAN=号角,阿斯卡纶,娜仁图雅 maa run-copilot.sh
+```
+
+⚠️ 前提：作业站有该关卡的作业；该关卡已在游戏里**解锁**（活动关卡要能进到编队界面）。
+首次可先确认能正常导航到关卡再开自动编队。
+
 ### 网页功能选单
 
 页面上的按钮是**扫 `config/tasks/*.toml` 自动生成**的，文件名就是任务 ID：

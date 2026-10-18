@@ -20,6 +20,8 @@ COPY run-daily.sh             /usr/local/bin/run-daily.sh
 COPY webctl.py                /usr/local/bin/webctl.py
 COPY update-maa.sh            /usr/local/bin/update-maa.sh
 COPY rotate-log.sh            /usr/local/bin/rotate-log.sh
+COPY copilot.py               /usr/local/bin/copilot.py
+COPY run-copilot.sh           /usr/local/bin/run-copilot.sh
 
 ENV MAA_CONFIG_DIR=/maa/config \
     MAA_INSTALL_DIR=/usr/local/bin \
@@ -36,7 +38,8 @@ ENV MAA_CONFIG_DIR=/maa/config \
 
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/run-daily.sh \
              /usr/local/bin/webctl.py /usr/local/bin/update-maa.sh \
-             /usr/local/bin/rotate-log.sh /usr/local/bin/maa
+             /usr/local/bin/rotate-log.sh /usr/local/bin/run-copilot.sh \
+             /usr/local/bin/maa
 
 WORKDIR /maa
 VOLUME ["/maa/config"]
