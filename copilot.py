@@ -130,6 +130,13 @@ def query_copilots(stage_id, limit=50):
     return http_get(url).get("data", {}).get("data", [])
 
 
+def get_copilot_full(cop_id):
+    """取完整作业 JSON。搜索接口的 content 是精简预览（缺 actions），
+    必须用 /copilot/get/{id} 才能拿到带 actions 的完整作业。"""
+    data = http_get(API + "/copilot/get/%s" % cop_id)
+    return data.get("data", {}).get("content", "")
+
+
 def pick_best(cops, banned):
     ok = []
     for c in cops:
@@ -175,6 +182,16 @@ def save_copilot(cop, stage):
     path = os.path.join(COPILOT_DIR, safe + ".json")
     os.makedirs(COPILOT_DIR, exist_ok=True)
     content = cop.get("content", "")
+    # 搜索接口的 content 是精简预览（没有 actions），必须用 /get/{id} 取完整版
+    cop_id = cop.get("id")
+    if cop_id is not None:
+        try:
+            full = get_copilot_full(cop_id)
+            if full:
+                content = full
+        except Exception as e:  # noqa: BLE001
+            print("[copilot] ⚠ 取完整作业失败（id=%s），退回精简版（可能缺 actions 无法运行）：%s"
+                  % (cop_id, e))
     try:
         parsed = json.loads(content)
         text = json.dumps(parsed, ensure_ascii=False, indent=2)
