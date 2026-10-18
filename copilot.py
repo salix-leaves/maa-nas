@@ -24,6 +24,7 @@
 import json
 import os
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -33,17 +34,28 @@ DEFAULT_BAN = os.environ.get("MAA_COPILOT_BAN", "号角,阿斯卡纶,娜仁图�
 LEVEL_CACHE = os.path.join(COPILOT_DIR, ".level-list.json")
 
 
-def http_get(url, timeout=20):
-    req = urllib.request.Request(url, headers={"User-Agent": "maa-nas-copilot/1.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode("utf-8"))
+def http_get(url, timeout=20, retries=3):
+    """带重试的 GET，应对作业站 DNS/网络偶发抖动。"""
+    last = None
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "maa-nas-copilot/1.0"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except Exception as e:  # noqa: BLE001 —— 网络类异常统一重试
+            last = e
+            if attempt < retries - 1:
+                time.sleep(1.5 * (attempt + 1))
+    raise last
 
 
-def fetch_levels(force=False):
+def fetch_levels(force=False, max_age=86400):
+    """拉取关卡列表（lite），带缓存；缓存超过 max_age 秒自动刷新。"""
     if not force and os.path.exists(LEVEL_CACHE):
         try:
-            with open(LEVEL_CACHE, encoding="utf-8") as f:
-                return json.load(f)
+            if time.time() - os.path.getmtime(LEVEL_CACHE) < max_age:
+                with open(LEVEL_CACHE, encoding="utf-8") as f:
+                    return json.load(f)
         except (OSError, json.JSONDecodeError):
             pass
     data = http_get(API + "/arknights/level/v2?lite=true")
@@ -235,7 +247,12 @@ def main():
             i += 1
 
     print("[copilot] 加载关卡列表…")
-    levels = fetch_levels()
+    try:
+        levels = fetch_levels()
+    except Exception as e:
+        print("[copilot] ❌ 网络错误：无法访问作业站，请检查 NAS 到 prts.maa.plus 的网络/DNS 后重试")
+        print("[copilot]   详情：%s" % e)
+        return 2
     matches = resolve_stages(levels, stage_query)
     if not matches:
         print("[copilot] 找不到关卡：%s" % stage_query)
@@ -246,9 +263,14 @@ def main():
     entries = []
     for m in matches:
         sid = m["stage_id"]
-        cops = query_copilots(sid, limit)
-        ok = pick_best(cops, banned)
         label = "%s(%s)" % (m.get("cat_three"), m.get("name"))
+        try:
+            cops = query_copilots(sid, limit)
+        except Exception as e:
+            print("[copilot] ❌ 网络错误：查询 %s 作业失败，请稍后重试" % label)
+            print("[copilot]   详情：%s" % e)
+            return 2
+        ok = pick_best(cops, banned)
         if not ok:
             print("[copilot] %s 无符合条件的作业，跳过（共 %d 份）" % (label, len(cops)))
             continue

@@ -24,8 +24,11 @@ rc=$?
 cat "$FTMP"
 rm -f "$FTMP"
 
-if [ $rc -ne 0 ] || [ ! -f "$TASK" ]; then
-  echo "[copilot] 找作业失败或没有可用作业，终止"
+if [ $rc -eq 2 ]; then
+  echo "[copilot] 网络错误，请稍后重试（作业站 DNS/网络可能抖动）"
+  exit 2
+elif [ $rc -ne 0 ] || [ ! -f "$TASK" ]; then
+  echo "[copilot] 没有可用作业：该关卡可能没有作业，或都被屏蔽干员过滤了"
   exit 1
 fi
 
