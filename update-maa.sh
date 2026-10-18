@@ -55,6 +55,19 @@ else
 fi
 rm -f "$OUT"
 
+# 瓦片数据（部署坐标）补齐：主资源里有、MaaResource 里缺的，补过去。
+# 否则新活动关卡（如昨日海 act52side）抄作业会报 invalid params（Tile.find 找不到）。
+TILE_SRC=/maa/data/maa/resource/Arknights-Tile-Pos
+TILE_DST=/maa/data/maa/MaaResource/resource/Arknights-Tile-Pos
+if [ -d "$TILE_SRC" ] && [ -d "$TILE_DST" ]; then
+  n=0
+  for f in "$TILE_SRC"/*.json; do
+    b=$(basename "$f")
+    [ -f "$TILE_DST/$b" ] || { cp "$f" "$TILE_DST/" && n=$((n + 1)); }
+  done
+  [ "$n" -gt 0 ] && echo "[maa] 瓦片数据补齐 $n 个文件"
+fi
+
 echo "[maa] 更新后版本："
 "$MAA" --version 2>&1 | sed 's/^/[maa]   /'
 echo "[maa] $(date '+%F %T') ===== 更新结束 ====="
