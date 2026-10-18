@@ -468,10 +468,10 @@ MENU_PAGE = """<!doctype html>
 <div class="row" style="margin-top:14px">
   <form method="post" action="/copilot"
         style="margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%"
-        onsubmit="return confirm('将自动查找作业、下载并开始战斗，确定吗？')">
+        onsubmit="return confirm('将自动查找作业、下载并开始战斗；填活动名（如「昨日海」）会批量连打该活动全部关卡，确定吗？')">
     <span style="font-size:13px;color:#8b93a7;white-space:nowrap">📋 抄作业</span>
-    <input type="text" name="stage" placeholder="关卡，如 YW-8" value="__COPLAST__"
-           style="width:130px;padding:8px 10px;border-radius:7px;border:1px solid #2b3446;background:#0d1016;color:#e6e8ee;font-size:13px">
+    <input type="text" name="stage" placeholder="关卡 YW-8，或活动名 昨日海(批量)" value="__COPLAST__"
+           style="width:210px;padding:8px 10px;border-radius:7px;border:1px solid #2b3446;background:#0d1016;color:#e6e8ee;font-size:13px">
     <input type="text" name="ban" placeholder="屏蔽干员，逗号分隔" value="__COPBAN__"
            style="width:230px;padding:8px 10px;border-radius:7px;border:1px solid #2b3446;background:#0d1016;color:#e6e8ee;font-size:13px">
     <button type="submit" class="go" id="cp"

@@ -163,13 +163,17 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 | 输入框 | 说明 |
 | --- | --- |
-| 关卡 | `YW-8`（活动关卡代码）、`act52side_08`（stage_id）、`鳞的记忆`（关卡名）、`昨日海`（活动名，会跑该活动全部关卡）均可 |
+| 关卡 | 单关：`YW-8`（活动关卡代码）、`act52side_08`（stage_id）、`鳞的记忆`（关卡名）均可。**批量：填活动名如 `昨日海`，会连打该活动全部关卡（YW-1~8 + EX-1~8，自动跳过教学关和突袭变体）** |
 | 屏蔽干员 | 逗号分隔，默认 `号角,阿斯卡纶,娜仁图雅,娜仁图亚`（会精确排除用这些干员的作业） |
+
+批量模式用的是 MAA 原生「多作业模式」（`copilot_list`）：为每个关卡各找一份最优作业，
+一次任务按顺序连续战斗，**理智不足 / 战斗失败 / 非三星结算时自动停止**（适合活动首通）。
 
 实现：
 
 - `copilot.py` —— 调作业站 `prts.maa.plus` 的 `/copilot/query` 精确按关卡搜作业，
-  解析每份作业 JSON 里的 `opers` / `groups` 干员名单做屏蔽过滤，按 `hot_score` 选最优并下载。
+  解析每份作业 JSON 里的 `opers` / `groups` 干员名单做屏蔽过滤，按 `hot_score` 选最优并下载；
+  多关卡时生成 `copilot_list` 任务 TOML。
 - `run-copilot.sh` —— 找作业 → 生成动态任务 `_copilot.toml`（`Copilot` 任务，`formation` 自动编队）
   → 复用 `run-daily.sh` 的 PC 唤醒 / 游戏启动预检 → `maa run`。
 
@@ -177,6 +181,10 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 ```bash
 docker exec -e MAA_COPILOT_STAGE=YW-8 \
+  -e MAA_COPILOT_BAN=号角,阿斯卡纶,娜仁图雅 maa run-copilot.sh
+
+# 批量（连打整个活动）
+docker exec -e MAA_COPILOT_STAGE=昨日海 \
   -e MAA_COPILOT_BAN=号角,阿斯卡纶,娜仁图雅 maa run-copilot.sh
 ```
 

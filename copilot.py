@@ -1,26 +1,29 @@
 #!/usr/bin/env python3
-"""MAA 作业（Copilot）自动查找 + 下载。
+"""MAA 作业（Copilot）自动查找 + 下载 + 批量任务生成。
 
 从作业站 prts.maa.plus 按关卡精确搜索作业，解析每份作业里的干员名单，
-过滤掉使用了「屏蔽干员」的作业，按热度选出最优一份，下载保存为 JSON。
+过滤掉使用了「屏蔽干员」的作业，按热度选出最优，下载保存，并可生成
+「多作业模式」任务（copilot_list）一次连续打完多个关卡。
 
 用法：
-  python3 copilot.py <关卡> [--ban 干员1,干员2,...] [--out /path/x.json] [--limit 50]
+  python3 copilot.py <关卡> [--ban 干员1,干员2] [--limit N] [--task 输出.toml] [--ignore-req true]
 
-  <关卡> 支持多种写法：YW-8（活动关卡代码）、act52side_08（stage_id）、
-  「鳞的记忆」（关卡名）、「昨日海」（活动名，会列出所有该活动关卡）。
+  <关卡> 支持：
+    - 单关：YW-8 / act52side_08 / 鳞的记忆
+    - 批量：昨日海（活动名，匹配该活动全部关卡，逐个找最优作业）
+
+  加 --task 时会生成一份 Copilot 任务 TOML（多关卡用 copilot_list 连续战斗）。
 
 环境变量：
   MAA_COPILOT_API   作业站 API 域名，默认 https://prts.maa.plus
   MAA_COPILOT_DIR   作业保存目录，默认 /maa/config/copilot
-  MAA_COPILOT_BAN   默认屏蔽干员（逗号分隔），CLI --ban 优先
+  MAA_COPILOT_BAN   默认屏蔽干员（逗号分隔）
 
 退出码：0 成功；1 找不到匹配作业；2 网络/解析错误。
 """
 import json
 import os
 import sys
-import time
 import urllib.parse
 import urllib.request
 
@@ -37,7 +40,6 @@ def http_get(url, timeout=20):
 
 
 def fetch_levels(force=False):
-    """拉取关卡列表（lite），带缓存。"""
     if not force and os.path.exists(LEVEL_CACHE):
         try:
             with open(LEVEL_CACHE, encoding="utf-8") as f:
@@ -56,32 +58,38 @@ def fetch_levels(force=False):
 
 
 def resolve_stages(levels, query):
-    """把用户给的关卡写法解析成 stage_id 列表（可能匹配多个关卡）。"""
+    """把用户给的关卡写法解析成 stage_id 列表（可能匹配多个关卡）。
+
+    批量首通场景：跳过突袭变体（stage_id 带 #f#）和教学关（代码含 -TR），
+    并按显示代码（cat_three）去重。
+    """
     q = query.strip()
     exact = []
     fuzzy = []
     for lv in levels:
         sid = lv.get("stage_id", "")
-        cat2 = lv.get("cat_two", "")
+        if "#f#" in sid:
+            continue  # 突袭变体，批量首通用普通难度
         cat3 = lv.get("cat_three", "")
+        if "-TR" in cat3:
+            continue  # 教学关，跳过
+        cat2 = lv.get("cat_two", "")
         name = lv.get("name", "")
         if q in (sid, cat3, name, cat2):
             exact.append(lv)
         elif q.lower() in (sid.lower(), cat3.lower(), name.lower(), cat2.lower()):
             fuzzy.append(lv)
-    # 去重（按 stage_id），优先精确匹配
     seen = set()
     out = []
     for lv in exact + fuzzy:
-        sid = lv.get("stage_id")
-        if sid and sid not in seen:
-            seen.add(sid)
+        key = lv.get("cat_three") or lv.get("stage_id")
+        if key and key not in seen:
+            seen.add(key)
             out.append(lv)
     return out
 
 
 def copilot_operators(content_json):
-    """提取作业 JSON 里用到的全部干员名（opers + groups + actions 的 name）。"""
     names = set()
     try:
         data = json.loads(content_json) if isinstance(content_json, str) else content_json
@@ -101,19 +109,16 @@ def copilot_operators(content_json):
 
 
 def hits_ban(content_json, banned):
-    names = copilot_operators(content_json)
-    return bool(names & banned)
+    return bool(copilot_operators(content_json) & banned)
 
 
 def query_copilots(stage_id, limit=50):
     url = "%s/copilot/query?%s" % (API, urllib.parse.urlencode(
         {"levelKeyword": stage_id, "page": 1, "limit": limit}))
-    data = http_get(url)
-    return data.get("data", {}).get("data", [])
+    return http_get(url).get("data", {}).get("data", [])
 
 
 def pick_best(cops, banned):
-    """过滤屏蔽干员 + 不可用，按热度排序。"""
     ok = []
     for c in cops:
         if not c.get("available", True):
@@ -122,11 +127,9 @@ def pick_best(cops, banned):
             continue
         if c.get("type") != "PRTS":
             continue
-        content = c.get("content", "")
-        if hits_ban(content, banned):
+        if hits_ban(c.get("content", ""), banned):
             continue
         ok.append(c)
-    # 热度优先，点赞/评分/浏览次之
     ok.sort(key=lambda c: (
         float(c.get("hot_score") or 0),
         int(c.get("like") or 0),
@@ -154,6 +157,55 @@ def summarize(c):
     }
 
 
+def save_copilot(cop, stage):
+    """把作业 JSON 落盘，返回 (绝对路径, 导航名)。"""
+    safe = (stage.get("cat_three") or stage.get("stage_id")).replace("/", "_")
+    path = os.path.join(COPILOT_DIR, safe + ".json")
+    os.makedirs(COPILOT_DIR, exist_ok=True)
+    content = cop.get("content", "")
+    try:
+        parsed = json.loads(content)
+        text = json.dumps(parsed, ensure_ascii=False, indent=2)
+    except (json.JSONDecodeError, TypeError):
+        text = content
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    nav = stage.get("cat_three") or stage.get("stage_id")
+    return path, nav
+
+
+def write_task(entries, task_path, ignore_req):
+    """entries: [{'filename','nav_name'}]，写 Copilot 任务 TOML（多作业模式）。"""
+    items = ", ".join('{ filename = "%s", nav_name_override = "%s" }'
+                      % (e["filename"], e["nav_name"]) for e in entries)
+    params = ("copilot_list = [" + items + "], formation = true, add_trust = true, "
+              "ignore_requirements = " + ("true" if ignore_req else "false")
+              + ", support_unit_usage = 1")
+    lines = [
+        "# @name 自动抄作业",
+        "# @desc 动态生成，由 copilot.py 写入，请勿手动编辑",
+        "",
+        "[[tasks]]",
+        'name = "开始唤醒"',
+        'type = "StartUp"',
+        'params = { client_type = "Official", start_game_enabled = true }',
+        "",
+        "[[tasks]]",
+        'name = "自动抄作业"',
+        'type = "Copilot"',
+        "params = { " + params + " }",
+        "",
+        "[[tasks]]",
+        'name = "关闭游戏"',
+        'type = "CloseDown"',
+        'params = { client_type = "Official" }',
+        "",
+    ]
+    os.makedirs(os.path.dirname(task_path) or ".", exist_ok=True)
+    with open(task_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
 def main():
     args = sys.argv[1:]
     if not args:
@@ -162,17 +214,22 @@ def main():
     stage_query = args[0]
     banned = set(x.strip() for x in DEFAULT_BAN.split(",") if x.strip())
     limit = 50
-    out_path = None
+    task_path = None
+    ignore_req = True
     i = 1
     while i < len(args):
-        if args[i] == "--ban" and i + 1 < len(args):
+        a = args[i]
+        if a == "--ban" and i + 1 < len(args):
             banned = set(x.strip() for x in args[i + 1].split(",") if x.strip())
             i += 2
-        elif args[i] == "--limit" and i + 1 < len(args):
+        elif a == "--limit" and i + 1 < len(args):
             limit = int(args[i + 1])
             i += 2
-        elif args[i] == "--out" and i + 1 < len(args):
-            out_path = args[i + 1]
+        elif a == "--task" and i + 1 < len(args):
+            task_path = args[i + 1]
+            i += 2
+        elif a == "--ignore-req" and i + 1 < len(args):
+            ignore_req = args[i + 1].lower() not in ("false", "0", "no")
             i += 2
         else:
             i += 1
@@ -184,48 +241,34 @@ def main():
         print("[copilot] 找不到关卡：%s" % stage_query)
         return 1
     print("[copilot] 匹配到 %d 个关卡：%s"
-          % (len(matches), ", ".join("%s(%s)" % (m.get("cat_three"), m.get("name")) for m in matches)))
+          % (len(matches), "、".join("%s(%s)" % (m.get("cat_three"), m.get("name")) for m in matches)))
 
-    all_ok = []
+    entries = []
     for m in matches:
         sid = m["stage_id"]
         cops = query_copilots(sid, limit)
         ok = pick_best(cops, banned)
-        print("[copilot] %s(%s) 共 %d 份作业，排除屏蔽后剩 %d 份"
-              % (m.get("cat_three"), m.get("name"), len(cops), len(ok)))
-        for c in ok:
-            c["_stage"] = m
-        all_ok.extend(ok)
+        label = "%s(%s)" % (m.get("cat_three"), m.get("name"))
+        if not ok:
+            print("[copilot] %s 无符合条件的作业，跳过（共 %d 份）" % (label, len(cops)))
+            continue
+        best = ok[0]
+        info = summarize(best)
+        path, nav = save_copilot(best, m)
+        entries.append({"filename": path, "nav_name": nav})
+        print("[copilot] ✓ %s 选「%s」作者 %s（热度 %.1f，%d 份候选）"
+              % (label, info["title"], info["author"], info["hot_score"], len(ok)))
 
-    if not all_ok:
-        print("[copilot] 没有符合条件（不含屏蔽干员）的作业")
+    if not entries:
+        print("[copilot] 没有任何关卡找到符合条件的作业")
         return 1
 
-    best = all_ok[0]
-    info = summarize(best)
-    print("[copilot] 最优作业：")
-    print("  作者: %s" % info["author"])
-    print("  标题: %s" % info["title"])
-    print("  热度: %.2f  点赞: %s  浏览: %s" % (info["hot_score"], info["like"], info["views"]))
-    print("  用到干员: %s" % "、".join(info["operators"]))
-
-    stage = best["_stage"]
-    safe = (stage.get("cat_three") or stage.get("stage_id")).replace("/", "_")
-    if not out_path:
-        out_path = os.path.join(COPILOT_DIR, safe + ".json")
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    # content 是 JSON 字符串，落盘成格式化 JSON
-    content = best.get("content", "")
-    try:
-        parsed = json.loads(content)
-        text = json.dumps(parsed, ensure_ascii=False, indent=2)
-    except (json.JSONDecodeError, TypeError):
-        text = content
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(text)
-    print("[copilot] 已保存: %s" % out_path)
-    # 输出路径供上层脚本取用
-    print("OUT=%s" % out_path)
+    print("[copilot] 共 %d 份作业就绪" % len(entries))
+    if task_path:
+        write_task(entries, task_path, ignore_req)
+        print("[copilot] 任务已生成: %s" % task_path)
+    elif len(entries) == 1:
+        print("OUT=%s" % entries[0]["filename"])
     return 0
 
 
