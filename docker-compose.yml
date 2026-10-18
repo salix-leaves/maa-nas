@@ -6,6 +6,10 @@ services:
       dockerfile: Dockerfile
     container_name: maa
     restart: unless-stopped
+    # 作业站/更新服务器走的是动态 DNS，NAS 默认 DNS 容易抖动导致解析失败，固定公共 DNS
+    dns:
+      - 223.5.5.5
+      - 119.29.29.29
     environment:
       - TZ=${TZ:-Asia/Shanghai}
       - MAA_CRON_TIME=${MAA_CRON_TIME:-off}
