@@ -14,7 +14,7 @@ RUN apt-get update \
 
 COPY bin/maa                  /usr/local/bin/maa
 COPY platform-tools           /opt/platform-tools
-COPY data                     /maa/data
+COPY data                     /opt/maa-seed
 COPY entrypoint.sh            /usr/local/bin/entrypoint.sh
 COPY run-daily.sh             /usr/local/bin/run-daily.sh
 COPY webctl.py                /usr/local/bin/webctl.py

@@ -9,6 +9,13 @@ if [ "${MAA_ONESHOT:-0}" = "1" ]; then
   exec /usr/local/bin/run-daily.sh
 fi
 
+# 首次运行：把镜像里烤好的资源播种到持久卷 /maa/data（之后「更新 MAA」的结果才能保留，重建不丢）
+if [ ! -d /maa/data/maa ] && [ -d /opt/maa-seed ]; then
+  echo "[maa] 首次运行：初始化资源到持久卷 /maa/data（约 1 分钟）..."
+  cp -a /opt/maa-seed/. /maa/data/
+  echo "[maa] 资源初始化完成"
+fi
+
 echo "[maa] Web 手动开关：http://<NAS-IP>:${MAA_WEB_PORT:-5599}"
 python3 /usr/local/bin/webctl.py &
 

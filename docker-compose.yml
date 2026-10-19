@@ -26,6 +26,7 @@ services:
     volumes:
       - ./config:/maa/config
       - ./log:/maa/log
+      - ./data:/maa/data
       - ${SSH_DIR:-/root/.ssh}:/root/.ssh:ro
     ports:
       # 默认只绑本机；改 .env 里的 BIND_IP 可开放给局域网（切勿暴露到公网）
